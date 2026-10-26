@@ -1,5 +1,5 @@
 
-name: Build Android APK
+name: Build Touchline Manager APK
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Touchline Manager APK
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -34,25 +34,38 @@ jobs:
           sdkmanager --install "platform-tools"
           sdkmanager --install "platforms;android-35"
           sdkmanager --install "build-tools;35.0.0"
+          yes | sdkmanager --licenses || true
 
-      - name: Accept Android SDK licences
-        run: yes | sdkmanager --licenses || true
-
-      - name: Check Gradle wrapper
+      - name: Extract Android project
         run: |
-          if [ ! -f gradlew ]; then
-            echo "ERROR: gradlew was not found in the repository root."
+          unzip -o touchline_manager_android.zip -d extracted
+          echo "Project files found:"
+          find extracted -maxdepth 4 -type f | head -80
+
+      - name: Locate Android project
+        run: |
+          PROJECT_FILE=$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "ERROR: settings.gradle was not found in the ZIP."
             exit 1
           fi
-          chmod +x gradlew
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project located at: $PROJECT_DIR"
+
+      - name: Install Gradle
+        run: |
+          curl -fL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o gradle.zip
+          unzip -q gradle.zip
+          echo "$PWD/gradle-8.9/bin" >> "$GITHUB_PATH"
 
       - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+        run: gradle --no-daemon -p "$PROJECT_DIR" assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: touchline-manager-apk
-          path: "**/build/outputs/apk/debug/*.apk"
+          path: extracted/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
