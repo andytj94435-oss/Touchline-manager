@@ -1,5 +1,5 @@
 
-name: Build Touchline Manager APK
+name: Build Android APK
 
 on:
   workflow_dispatch:
@@ -13,11 +13,11 @@ permissions:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build Touchline Manager APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get project code
+      - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Set up Java
@@ -28,14 +28,23 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
 
-      - name: Enable Gradle wrapper
-        run: chmod +x gradlew
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install "platform-tools"
+          sdkmanager --install "platforms;android-35"
+          sdkmanager --install "build-tools;35.0.0"
+
+      - name: Accept Android SDK licences
+        run: yes | sdkmanager --licenses || true
+
+      - name: Check Gradle wrapper
+        run: |
+          if [ ! -f gradlew ]; then
+            echo "ERROR: gradlew was not found in the repository root."
+            exit 1
+          fi
+          chmod +x gradlew
 
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
@@ -44,6 +53,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: touchline-manager-apk
-          path: '**/build/outputs/apk/debug/*.apk'
+          path: "**/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
           retention-days: 14
